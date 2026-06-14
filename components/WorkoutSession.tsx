@@ -28,10 +28,6 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
   const caloriesRemaining = totalCalories - caloriesBurned
   const completedCount = exercises.filter(e => e.completed).length
 
-  useEffect(() => {
-    loadExercises()
-  }, [workoutType.id])
-
   async function loadExercises() {
     setLoading(true)
     const { data } = await supabase
@@ -49,7 +45,6 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
       setExercises(withState)
     }
 
-    // Create a session
     const { data: session } = await supabase
       .from('workout_sessions')
       .insert({
@@ -64,6 +59,8 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
     if (session) setSessionId(session.id)
     setLoading(false)
   }
+
+  useEffect(() => { loadExercises() }, [])
 
   async function toggleExercise(exerciseId: string) {
     setExercises(prev =>
@@ -180,7 +177,7 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
             <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Exercises</h3>
           </div>
           <div className="divide-y divide-gray-700">
-            {exercises.map((ex, idx) => (
+            {exercises.map((ex) => (
               <button
                 key={ex.id}
                 onClick={() => toggleExercise(ex.id)}

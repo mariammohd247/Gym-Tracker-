@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { CustomPlanExercise, CustomWorkoutPlan, MachineType, UserProfile } from '@/lib/types'
-import { calcCardioCalories, cardioDisplayLabel, MACHINE_LABELS } from '@/lib/cardioCalories'
+import { calcCardioCalories, MACHINE_LABELS } from '@/lib/cardioCalories'
 import {
   Plus, Trash2, ChevronLeft, Save, Dumbbell, RotateCcw, Weight, Repeat, Activity,
   ChevronDown
@@ -258,11 +258,10 @@ function CardioCard({
 // ─── Strength card ───────────────────────────────────────────────────────────
 
 function StrengthCard({
-  ex, idx, userWeightKg, onChange, onRemove, onCalcCalories
+  ex, idx, onChange, onRemove, onCalcCalories
 }: {
   ex: StrengthDraft
   idx: number
-  userWeightKg: number
   onChange: (idx: number, field: keyof StrengthDraft, value: string | number | boolean) => void
   onRemove: (idx: number) => void
   onCalcCalories: (idx: number) => void
@@ -450,7 +449,6 @@ export default function CustomWorkoutBuilder({ profile, onSaved, onBack }: Props
             />
           ) : (
             <StrengthCard key={idx} ex={ex as StrengthDraft} idx={idx}
-              userWeightKg={profile.weight}
               onChange={updateStrength}
               onRemove={removeExercise}
               onCalcCalories={calcStrengthCalories}

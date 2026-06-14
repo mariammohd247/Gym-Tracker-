@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { CustomPlanExercise, CustomPlanExerciseWithState, CustomWorkoutPlan, UserProfile } from '@/lib/types'
 import {
-  ChevronLeft, CheckCircle, Circle, Flame, Weight, Dumbbell, RotateCcw, Repeat,
-  ChevronUp, Loader2, Activity
+  CheckCircle, Circle, Flame, Weight, Dumbbell, RotateCcw, Repeat,
+  ChevronUp, Loader2
 } from 'lucide-react'
 import { cardioDisplayLabel, MACHINE_LABELS } from '@/lib/cardioCalories'
 
@@ -28,14 +28,16 @@ function CustomSummaryModal({
   const skipped = exercises.filter(e => !e.completed)
   const pct = Math.round((done.length / exercises.length) * 100)
 
-  const msgs = pct === 100
-    ? ["Flawless execution! You absolutely crushed it! 🏆", "100% complete — that's elite level! 🔥"]
-    : pct >= 70
-    ? ["Solid session! You're building something great!", "Strong effort — consistency is everything!"]
-    : pct >= 40
-    ? ["Good work! Every rep is progress. Keep coming back!", "Half-way hero — build on this momentum!"]
-    : ["You showed up and that matters. Come back stronger!", "Starting is the hardest part — you did it!"]
-  const msg = msgs[Math.floor(Math.random() * msgs.length)]
+  const [msg] = useState(() => {
+    const msgList = pct === 100
+      ? ["Flawless execution! You absolutely crushed it! 🏆", "100% complete — that's elite level! 🔥"]
+      : pct >= 70
+      ? ["Solid session! Keep building on this!", "Strong effort — consistency is everything!"]
+      : pct >= 40
+      ? ["Good work! Every rep is progress. Keep coming back!", "Half-way hero — build on this momentum!"]
+      : ["You showed up and that matters. Come back stronger!", "Starting is the hardest part — you did it!"]
+    return msgList[Math.floor(Math.random() * msgList.length)]
+  })
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -130,8 +132,6 @@ export default function CustomWorkoutSession({ plan, profile, onBack }: Props) {
   const totalEstimated = exercises.reduce((s, e) => s + e.estimated_calories, 0)
   const completedCount = exercises.filter(e => e.completed).length
 
-  useEffect(() => { loadExercises() }, [plan.id])
-
   async function loadExercises() {
     const { data } = await supabase
       .from('custom_plan_exercises')
@@ -164,6 +164,8 @@ export default function CustomWorkoutSession({ plan, profile, onBack }: Props) {
     if (session) setSessionId(session.id)
     setLoading(false)
   }
+
+  useEffect(() => { loadExercises() }, [])
 
   async function recalcCalories(idx: number) {
     const ex = exercises[idx]

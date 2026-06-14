@@ -10,10 +10,6 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    checkProfile()
-  }, [])
-
   async function checkProfile() {
     const savedId = localStorage.getItem('gym_user_id')
     if (savedId) {
@@ -26,6 +22,8 @@ export default function Home() {
     }
     setLoading(false)
   }
+
+  useEffect(() => { checkProfile() }, [])
 
   function handleLogout() {
     localStorage.removeItem('gym_user_id')

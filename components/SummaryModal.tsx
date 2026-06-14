@@ -54,7 +54,6 @@ function getMotivationalMessage(percentage: number): string {
 export default function SummaryModal({
   workoutType,
   exercises,
-  totalCalories,
   caloriesBurned,
   profile,
   onClose,

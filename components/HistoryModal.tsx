@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { UserProfile } from '@/lib/types'
-import { X, Flame, Calendar, CheckCircle, XCircle, Dumbbell, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Calendar, CheckCircle, XCircle, Dumbbell, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface SessionRow {
   id: string
@@ -27,8 +27,6 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  useEffect(() => { loadHistory() }, [])
-
   async function loadHistory() {
     const { data } = await supabase
       .from('workout_sessions')
@@ -45,6 +43,8 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
     if (data) setSessions(data as unknown as SessionRow[])
     setLoading(false)
   }
+
+  useEffect(() => { loadHistory() }, [])
 
   const totalBurned = sessions.reduce((s, r) => s + r.total_calories_burned, 0)
   const totalPossible = sessions.reduce((s, r) =>
@@ -143,7 +143,7 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
                     />
                   </div>
                   <p className="text-xs text-gray-400 text-center">
-                    You've burned <span className="text-orange-400 font-semibold">{Math.round((totalBurned / totalPossible) * 100)}%</span> of all possible calories across {sessions.length} sessions
+                    You&apos;ve burned <span className="text-orange-400 font-semibold">{Math.round((totalBurned / totalPossible) * 100)}%</span> of all possible calories across {sessions.length} sessions
                   </p>
                 </>
               )}
