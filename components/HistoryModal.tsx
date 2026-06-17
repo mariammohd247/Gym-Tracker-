@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { UserProfile } from '@/lib/types'
-import { X, Calendar, CheckCircle, XCircle, Dumbbell, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Calendar, CheckCircle, XCircle, Dumbbell, ChevronDown, ChevronUp, Paperclip, FileText } from 'lucide-react'
 
 interface SessionRow {
   id: string
   date: string
   completed_at: string | null
   total_calories_burned: number
+  attachment_url: string | null
   workout_type: { name: string; emoji: string } | null
   custom_plan: { name: string } | null
   exercises: { exercise_name: string; calories_burned: number; potential_calories: number; completed: boolean; weight_kg: number }[]
@@ -31,7 +32,7 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
     const { data } = await supabase
       .from('workout_sessions')
       .select(`
-        id, date, completed_at, total_calories_burned,
+        id, date, completed_at, total_calories_burned, attachment_url,
         workout_type:workout_types(name, emoji),
         custom_plan:custom_workout_plans(name),
         exercises:session_exercises(exercise_name, calories_burned, potential_calories, completed, weight_kg)
@@ -190,6 +191,12 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
                         <span className="text-xs text-gray-400">{formatDate(session.date)}</span>
                         <span className="text-gray-600">·</span>
                         <span className="text-xs text-gray-400">{session.exercises.length} exercises</span>
+                        {session.attachment_url && (
+                          <>
+                            <span className="text-gray-600">·</span>
+                            <Paperclip className="w-3 h-3 text-orange-400" />
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -219,6 +226,31 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
                           }`}
                           style={{ width: `${pct}%` }}
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expanded attachments */}
+                  {isExpanded && session.attachment_url && (
+                    <div className="border-t border-gray-700 px-4 py-3">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1 mb-2">
+                        <Paperclip className="w-3 h-3 text-orange-400" /> Attachments
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {session.attachment_url.split(',').map((url, i) => {
+                          const isImage = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)
+                          return isImage ? (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                              <img src={url} alt={`Attachment ${i + 1}`} className="w-full h-20 object-cover rounded-xl border border-gray-700 hover:border-orange-500 transition" />
+                            </a>
+                          ) : (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                              className="flex flex-col items-center justify-center h-20 bg-gray-700 rounded-xl border border-gray-600 hover:border-orange-500 transition gap-1">
+                              <FileText className="w-6 h-6 text-orange-400" />
+                              <span className="text-xs text-gray-400">View file</span>
+                            </a>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
