@@ -27,6 +27,7 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
 
   async function loadHistory() {
     const { data } = await supabase
@@ -240,9 +241,9 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
                         {session.attachment_url.split(',').map((url, i) => {
                           const isImage = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)
                           return isImage ? (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <button key={i} onClick={() => setLightbox(url)} className="w-full">
                               <img src={url} alt={`Attachment ${i + 1}`} className="w-full h-20 object-cover rounded-xl border border-gray-700 hover:border-orange-500 transition" />
-                            </a>
+                            </button>
                           ) : (
                             <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                               className="flex flex-col items-center justify-center h-20 bg-gray-700 rounded-xl border border-gray-600 hover:border-orange-500 transition gap-1">
@@ -302,6 +303,27 @@ export default function HistoryModal({ profile, defaultTab, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img
+            src={lightbox}
+            alt="Attachment"
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }
