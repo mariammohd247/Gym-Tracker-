@@ -172,20 +172,32 @@ export default function CustomWorkoutSession({ plan, profile, onBack }: Props) {
     setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: true } : e))
 
     try {
-      const res = await fetch('/api/calculate-calories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          exerciseName: ex.name,
-          weightKg: ex.actual_weight_kg,
-          reps: ex.reps,
-          rounds: ex.rounds,
-          userWeightKg: profile.weight,
-        }),
-      })
-      const data = await res.json()
+      const body = ex.exercise_type === 'cardio'
+        ? {
+            type: 'cardio',
+            machineType: ex.machine_type,
+            durationMinutes: ex.duration_minutes,
+            speed: ex.speed,
+            meters: ex.cardio_unit === 'meters' ? ex.cardio_target : null,
+            incline: ex.incline,
+            machineMode: ex.machine_mode,
+            machineLevel: ex.machine_level,
+            cardioUnit: ex.cardio_unit,
+            cardioTarget: ex.cardio_target,
+            userWeightKg: profile.weight,
+          }
+        : {
+            type: 'strength',
+            exerciseName: ex.name,
+            weightKg: ex.actual_weight_kg,
+            reps: ex.reps,
+            rounds: ex.rounds,
+            userWeightKg: profile.weight,
+          }
+
+      const { data } = await supabase.functions.invoke('calculate-calories', { body })
       setExercises(prev =>
-        prev.map((e, i) => i === idx ? { ...e, actual_calories: data.calories ?? e.estimated_calories, calculating: false } : e)
+        prev.map((e, i) => i === idx ? { ...e, actual_calories: data?.calories ?? e.estimated_calories, calculating: false } : e)
       )
     } catch {
       setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: false } : e))

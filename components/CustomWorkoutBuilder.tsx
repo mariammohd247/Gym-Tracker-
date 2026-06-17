@@ -58,13 +58,14 @@ function defaultCardio(machine_type: MachineType = 'treadmill'): CardioDraft {
 // ─── Cardio card ────────────────────────────────────────────────────────────
 
 function CardioCard({
-  ex, idx, userWeightKg, onChange, onRemove
+  ex, idx, userWeightKg, onChange, onRemove, onCalcCalories
 }: {
   ex: CardioDraft
   idx: number
   userWeightKg: number
   onChange: (idx: number, next: CardioDraft) => void
   onRemove: (idx: number) => void
+  onCalcCalories: (idx: number) => void
 }) {
   const [showMachineMenu, setShowMachineMenu] = useState(false)
   const isRowSki = ex.machine_type === 'row' || ex.machine_type === 'ski'
@@ -73,6 +74,7 @@ function CardioCard({
 
   function update(patch: Partial<CardioDraft>) {
     const next = { ...ex, ...patch }
+    // instant client-side preview while typing
     const cals = calcCardioCalories({ ...next, userWeightKg })
     onChange(idx, { ...next, estimated_calories: cals })
   }
@@ -154,6 +156,7 @@ function CardioCard({
             <input type="number" value={ex.cardio_target || ''} min={0}
               placeholder={ex.cardio_unit === 'meters' ? '2000' : '100'}
               onChange={e => update({ cardio_target: parseInt(e.target.value) || 0 })}
+              onBlur={() => onCalcCalories(idx)}
               className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-white text-sm text-center focus:outline-none focus:border-purple-500 transition"
             />
           </div>
@@ -180,6 +183,7 @@ function CardioCard({
               <label className="text-xs text-gray-400 mb-1.5 block">Duration (min)</label>
               <input type="number" value={ex.duration_minutes} min={1} max={300}
                 onChange={e => update({ duration_minutes: parseInt(e.target.value) || 1 })}
+                onBlur={() => onCalcCalories(idx)}
                 className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-white text-sm text-center focus:outline-none focus:border-purple-500 transition"
               />
             </div>
@@ -191,6 +195,7 @@ function CardioCard({
               </label>
               <input type="number" value={ex.speed} min={0} step={0.5}
                 onChange={e => update({ speed: parseFloat(e.target.value) || 0 })}
+                onBlur={() => onCalcCalories(idx)}
                 className="w-full bg-gray-700 border border-gray-600 rounded-xl px-3 py-2 text-white text-sm text-center focus:outline-none focus:border-purple-500 transition"
               />
             </div>
@@ -246,10 +251,19 @@ function CardioCard({
       <div className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm ${
         ex.estimated_calories > 0 ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-gray-700/50'
       }`}>
-        {ex.estimated_calories > 0
-          ? <span className="text-purple-300 font-medium">🔥 {ex.estimated_calories} calories estimated</span>
-          : <span className="text-gray-500 text-xs">Fill in details above to get calorie estimate</span>
-        }
+        {ex.calculating ? (
+          <span className="text-gray-400 flex items-center gap-2">
+            <span className="inline-block w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            Calculating with AI...
+          </span>
+        ) : ex.estimated_calories > 0 ? (
+          <>
+            <span className="text-purple-300 font-medium">🔥 {ex.estimated_calories} calories estimated</span>
+            <button onClick={() => onCalcCalories(idx)} className="text-xs text-gray-500 hover:text-purple-400 transition">Recalc</button>
+          </>
+        ) : (
+          <span className="text-gray-500 text-xs">Fill in details above to get calorie estimate</span>
+        )}
       </div>
     </div>
   )
@@ -361,15 +375,44 @@ export default function CustomWorkoutBuilder({ profile, onSaved, onBack }: Props
     if (!ex.name.trim()) return
     setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: true } as StrengthDraft : e))
     try {
-      const res = await fetch('/api/calculate-calories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exerciseName: ex.name, weightKg: ex.weight_kg, reps: ex.reps, rounds: ex.rounds, userWeightKg: profile.weight }),
+      const { data } = await supabase.functions.invoke('calculate-calories', {
+        body: {
+          type: 'strength',
+          exerciseName: ex.name,
+          weightKg: ex.weight_kg,
+          reps: ex.reps,
+          rounds: ex.rounds,
+          userWeightKg: profile.weight,
+        },
       })
-      const data = await res.json()
-      setExercises(prev => prev.map((e, i) => i === idx ? { ...e, estimated_calories: data.calories ?? 0, calculating: false } as StrengthDraft : e))
+      setExercises(prev => prev.map((e, i) => i === idx ? { ...e, estimated_calories: data?.calories ?? 0, calculating: false } as StrengthDraft : e))
     } catch {
       setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: false } as StrengthDraft : e))
+    }
+  }
+
+  async function calcCardioCaloriesAI(idx: number) {
+    const ex = exercises[idx] as CardioDraft
+    setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: true } as CardioDraft : e))
+    try {
+      const { data } = await supabase.functions.invoke('calculate-calories', {
+        body: {
+          type: 'cardio',
+          machineType: ex.machine_type,
+          durationMinutes: ex.duration_minutes,
+          speed: ex.speed,
+          meters: ex.cardio_unit === 'meters' ? ex.cardio_target : null,
+          incline: ex.incline,
+          machineMode: ex.machine_mode,
+          machineLevel: ex.machine_level,
+          cardioUnit: ex.cardio_unit,
+          cardioTarget: ex.cardio_target,
+          userWeightKg: profile.weight,
+        },
+      })
+      setExercises(prev => prev.map((e, i) => i === idx ? { ...e, estimated_calories: data?.calories ?? (e as CardioDraft).estimated_calories, calculating: false } as CardioDraft : e))
+    } catch {
+      setExercises(prev => prev.map((e, i) => i === idx ? { ...e, calculating: false } as CardioDraft : e))
     }
   }
 
@@ -446,6 +489,7 @@ export default function CustomWorkoutBuilder({ profile, onSaved, onBack }: Props
               userWeightKg={profile.weight}
               onChange={updateCardio}
               onRemove={removeExercise}
+              onCalcCalories={calcCardioCaloriesAI}
             />
           ) : (
             <StrengthCard key={idx} ex={ex as StrengthDraft} idx={idx}
