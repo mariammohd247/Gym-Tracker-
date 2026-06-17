@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Exercise, ExerciseWithState, UserProfile, WorkoutType } from '@/lib/types'
-import { CheckCircle, Circle, ChevronUp, Flame, Dumbbell, Clock } from 'lucide-react'
+import { CheckCircle, Circle, ChevronUp, Flame, Dumbbell, Clock, Paperclip, X, FileText, Image, Loader2 } from 'lucide-react'
 import SummaryModal from './SummaryModal'
 
 interface Props {
@@ -16,12 +16,21 @@ function adjustCalories(base: number, weightKg: number): number {
   return Math.round(base * (weightKg / 70))
 }
 
+function fileIcon(type: string) {
+  if (type.startsWith('image/')) return <Image className="w-4 h-4 text-blue-400" />
+  return <FileText className="w-4 h-4 text-orange-400" />
+}
+
 export default function WorkoutSession({ workoutType, profile, onBack }: Props) {
   const [exercises, setExercises] = useState<ExerciseWithState[]>([])
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [showSummary, setShowSummary] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Attachment state
+  const [attachments, setAttachments] = useState<{ file: File; url: string; uploading: boolean; publicUrl?: string }[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const caloriesBurned = exercises.filter(e => e.completed).reduce((s, e) => s + e.adjusted_calories, 0)
   const totalCalories = exercises.reduce((s, e) => s + e.adjusted_calories, 0)
@@ -62,6 +71,40 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
 
   useEffect(() => { loadExercises() }, [])
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+
+    for (const file of files) {
+      const localUrl = URL.createObjectURL(file)
+      const idx = attachments.length
+      setAttachments(prev => [...prev, { file, url: localUrl, uploading: true }])
+
+      const path = `${workoutType.slug}/${Date.now()}-${file.name.replace(/\s+/g, '_')}`
+      const { data, error } = await supabase.storage
+        .from('preset-workout-attachments')
+        .upload(path, file, { upsert: true })
+
+      if (!error && data) {
+        const { data: pub } = supabase.storage
+          .from('preset-workout-attachments')
+          .getPublicUrl(data.path)
+        setAttachments(prev =>
+          prev.map((a, i) => i === idx ? { ...a, uploading: false, publicUrl: pub.publicUrl } : a)
+        )
+      } else {
+        setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, uploading: false } : a))
+      }
+    }
+
+    // Reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments(prev => prev.filter((_, i) => i !== idx))
+  }
+
   async function toggleExercise(exerciseId: string) {
     setExercises(prev =>
       prev.map(ex =>
@@ -74,17 +117,22 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
     setSaving(true)
     const now = new Date().toISOString()
 
+    // Collect all uploaded attachment URLs
+    const attachmentUrls = attachments
+      .filter(a => a.publicUrl)
+      .map(a => a.publicUrl!)
+      .join(',')
+
     if (sessionId) {
-      // Update session total calories
       await supabase
         .from('workout_sessions')
         .update({
           total_calories_burned: caloriesBurned,
           completed_at: now,
+          attachment_url: attachmentUrls || null,
         })
         .eq('id', sessionId)
 
-      // Insert session exercises — store potential_calories for every exercise so history can show "X of Y cal"
       const sessionExercises = exercises.map(ex => ({
         session_id: sessionId,
         exercise_id: ex.id,
@@ -213,7 +261,88 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
           </div>
         </div>
 
-        {/* Calorie burn animation */}
+        {/* ── Attachments ── */}
+        <div className="bg-gray-800 border border-gray-700 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-orange-400" />
+              Attachments
+            </h3>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 px-3 py-1.5 rounded-lg transition font-medium"
+            >
+              + Add file
+            </button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,application/pdf,video/mp4,video/quicktime"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {attachments.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-gray-600 hover:border-orange-500/50 rounded-xl py-6 flex flex-col items-center gap-2 transition group"
+            >
+              <Paperclip className="w-6 h-6 text-gray-500 group-hover:text-orange-400 transition" />
+              <p className="text-gray-500 text-sm group-hover:text-gray-400 transition">
+                Upload images, PDFs or videos
+              </p>
+            </button>
+          ) : (
+            <div className="space-y-2">
+              {attachments.map((a, i) => (
+                <div key={i} className="flex items-center gap-3 bg-gray-700/50 rounded-xl px-3 py-2.5">
+                  {a.uploading ? (
+                    <Loader2 className="w-4 h-4 text-orange-400 animate-spin flex-shrink-0" />
+                  ) : (
+                    fileIcon(a.file.type)
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {/* Preview image if it's an image */}
+                    {a.file.type.startsWith('image/') && !a.uploading && (
+                      <img
+                        src={a.url}
+                        alt={a.file.name}
+                        className="w-full max-h-40 object-cover rounded-lg mb-2"
+                      />
+                    )}
+                    <p className="text-sm text-gray-300 truncate">{a.file.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {a.uploading ? 'Uploading...' : a.publicUrl ? '✓ Uploaded' : 'Upload failed'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(i)}
+                    className="text-gray-500 hover:text-red-400 transition flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add more */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full border border-dashed border-gray-600 hover:border-orange-500/50 rounded-xl py-2 text-xs text-gray-500 hover:text-orange-400 transition"
+              >
+                + Add another file
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Calorie burn banner */}
         {caloriesBurned > 0 && (
           <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 flex items-center gap-3">
             <Flame className="w-8 h-8 text-orange-400 flex-shrink-0" />
@@ -233,11 +362,13 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
         {/* Done button */}
         <button
           onClick={handleDoneWorkout}
-          disabled={saving}
+          disabled={saving || attachments.some(a => a.uploading)}
           className="w-full bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 disabled:opacity-60 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 text-lg shadow-lg shadow-orange-500/20"
         >
           {saving ? (
             <>Saving workout...</>
+          ) : attachments.some(a => a.uploading) ? (
+            <><Loader2 className="w-5 h-5 animate-spin" /> Uploading files...</>
           ) : (
             <>
               <ChevronUp className="w-5 h-5" />
