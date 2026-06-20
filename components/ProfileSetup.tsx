@@ -6,10 +6,11 @@ import { TargetGoal, UserProfile } from '@/lib/types'
 import { User, Ruler, Weight, Target, ChevronRight } from 'lucide-react'
 
 interface Props {
+  authUserId: string
   onComplete: (profile: UserProfile) => void
 }
 
-export default function ProfileSetup({ onComplete }: Props) {
+export default function ProfileSetup({ authUserId, onComplete }: Props) {
   const [form, setForm] = useState({
     name: '',
     age: '',
@@ -38,6 +39,7 @@ export default function ProfileSetup({ onComplete }: Props) {
     const { data, error: dbError } = await supabase
       .from('user_profiles')
       .insert({
+        auth_user_id: authUserId,
         name: form.name.trim(),
         age: parseInt(form.age),
         height: parseFloat(form.height),
@@ -53,7 +55,6 @@ export default function ProfileSetup({ onComplete }: Props) {
       return
     }
 
-    localStorage.setItem('gym_user_id', data.id)
     onComplete(data)
   }
 

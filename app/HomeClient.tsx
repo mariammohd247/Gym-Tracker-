@@ -3,34 +3,70 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { UserProfile } from '@/lib/types'
+import AuthScreen from '@/components/AuthScreen'
 import ProfileSetup from '@/components/ProfileSetup'
 import Dashboard from '@/components/Dashboard'
 
+type AppState = 'loading' | 'auth' | 'setup' | 'dashboard'
+
 export default function HomeClient() {
+  const [appState, setAppState] = useState<AppState>('loading')
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [authUserId, setAuthUserId] = useState<string | null>(null)
 
-  async function checkProfile() {
-    const savedId = localStorage.getItem('gym_user_id')
-    if (savedId) {
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', savedId)
-        .single()
-      if (data) setProfile(data)
+  async function loadProfile(userId: string) {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('auth_user_id', userId)
+      .maybeSingle()
+
+    if (data) {
+      setProfile(data)
+      setAppState('dashboard')
+    } else {
+      // Logged in but no profile yet → show profile setup
+      setAuthUserId(userId)
+      setAppState('setup')
     }
-    setLoading(false)
   }
 
-  useEffect(() => { checkProfile() }, [])
+  useEffect(() => {
+    // Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadProfile(session.user.id)
+      } else {
+        setAppState('auth')
+      }
+    })
 
-  function handleLogout() {
-    localStorage.removeItem('gym_user_id')
-    setProfile(null)
+    // Listen for auth state changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        loadProfile(session.user.id)
+      } else {
+        setProfile(null)
+        setAuthUserId(null)
+        setAppState('auth')
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    // onAuthStateChange will set state to 'auth' automatically
   }
 
-  if (loading) {
+  function handleProfileComplete(newProfile: UserProfile) {
+    setProfile(newProfile)
+    setAppState('dashboard')
+  }
+
+  // ── Loading splash ──
+  if (appState === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -41,9 +77,33 @@ export default function HomeClient() {
     )
   }
 
-  if (!profile) {
-    return <ProfileSetup onComplete={setProfile} />
+  // ── Auth (login / register) ──
+  if (appState === 'auth') {
+    return (
+      <AuthScreen
+        onAuth={(userId) => {
+          setAuthUserId(userId)
+          loadProfile(userId)
+        }}
+      />
+    )
   }
 
-  return <Dashboard profile={profile} onLogout={handleLogout} />
+  // ── Profile setup (first time after register) ──
+  if (appState === 'setup' && authUserId) {
+    return (
+      <ProfileSetup
+        authUserId={authUserId}
+        onComplete={handleProfileComplete}
+      />
+    )
+  }
+
+  // ── Main dashboard ──
+  if (appState === 'dashboard' && profile) {
+    return <Dashboard profile={profile} onLogout={handleLogout} />
+  }
+
+  // Fallback
+  return null
 }

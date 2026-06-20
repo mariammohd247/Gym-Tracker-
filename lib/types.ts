@@ -2,6 +2,7 @@ export type TargetGoal = 'lose_weight' | 'gain_muscle' | 'maintain'
 
 export interface UserProfile {
   id: string
+  auth_user_id: string | null
   name: string
   age: number
   height: number // cm
