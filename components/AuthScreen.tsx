@@ -12,7 +12,9 @@ export default function AuthScreen({ onAuth }: Props) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
@@ -28,6 +30,10 @@ export default function AuthScreen({ onAuth }: Props) {
     }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.')
+      return
+    }
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.')
       return
     }
 
@@ -91,7 +97,7 @@ export default function AuthScreen({ onAuth }: Props) {
         <div className="flex bg-gray-800 rounded-2xl p-1 mb-6 border border-gray-700">
           <button
             type="button"
-            onClick={() => { setMode('login'); setError(''); setSuccessMsg('') }}
+            onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); setConfirmPassword('') }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${
               mode === 'login'
                 ? 'bg-orange-500 text-white shadow-lg'
@@ -102,7 +108,7 @@ export default function AuthScreen({ onAuth }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { setMode('register'); setError(''); setSuccessMsg('') }}
+            onClick={() => { setMode('register'); setError(''); setSuccessMsg(''); setConfirmPassword('') }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition ${
               mode === 'register'
                 ? 'bg-orange-500 text-white shadow-lg'
@@ -160,6 +166,43 @@ export default function AuthScreen({ onAuth }: Props) {
             )}
           </div>
 
+          {/* Confirm Password — register only */}
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Retype Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  className={`w-full bg-gray-700 border rounded-xl pl-10 pr-12 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-1 transition ${
+                    confirmPassword && confirmPassword !== password
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                      : confirmPassword && confirmPassword === password
+                      ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                      : 'border-gray-600 focus:border-orange-500 focus:ring-orange-500'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-xs text-red-400 mt-1.5">Passwords do not match</p>
+              )}
+              {confirmPassword && confirmPassword === password && (
+                <p className="text-xs text-green-400 mt-1.5">✓ Passwords match</p>
+              )}
+            </div>
+          )}
+
           {/* Error / Success */}
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
@@ -193,7 +236,7 @@ export default function AuthScreen({ onAuth }: Props) {
             {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
             <button
               type="button"
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMsg('') }}
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMsg(''); setConfirmPassword('') }}
               className="text-orange-400 hover:text-orange-300 font-medium transition"
             >
               {mode === 'login' ? 'Register' : 'Log in'}
