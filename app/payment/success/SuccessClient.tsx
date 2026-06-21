@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 const PLAN_LABELS: Record<string, string> = {
@@ -29,16 +28,14 @@ export default function SuccessClient() {
 
   async function verify(paymentId: string) {
     try {
-      // 1. Verify with MyFatoorah
-      const res = await fetch('/api/payment/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId }),
+      // 1. Verify via Supabase Edge Function (MyFatoorah API key stays in Supabase secrets)
+      const { supabase } = await import('@/lib/supabase')
+      const { data, error: fnError } = await supabase.functions.invoke('payment', {
+        body: { action: 'verify', paymentId },
       })
-      const data = await res.json()
 
-      if (!data.success) {
-        setErrorMsg(`Payment status: ${data.status ?? 'unknown'}`)
+      if (fnError || !data?.success) {
+        setErrorMsg(`Payment status: ${data?.status ?? fnError?.message ?? 'unknown'}`)
         setStatus('failed')
         return
       }

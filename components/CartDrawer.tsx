@@ -5,6 +5,8 @@ import { X, ShoppingCart, Trash2, Loader2, Zap, Crown, ArrowRight } from 'lucide
 import { UserProfile } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
+const EDGE_FN = 'payment'
+
 export interface CartItem {
   planId: 'pro' | 'elite'
   planName: string
@@ -47,23 +49,22 @@ export default function CartDrawer({ cart, profile, onRemove, onClose }: Props) 
       const { data: { user } } = await supabase.auth.getUser()
       const email = user?.email ?? 'customer@gymtracker.app'
 
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: cart.planId,
-          planName: `Gym Tracker ${cart.planName} Plan`,
-          amount: cart.price,
-          profileId: profile.id,
-          customerName: profile.name,
-          customerEmail: email,
-        }),
+      // Call Supabase Edge Function (MyFatoorah API key lives only in Supabase secrets)
+      const { data, error: fnError } = await supabase.functions.invoke(EDGE_FN, {
+        body: {
+          action:         'checkout',
+          planId:          cart.planId,
+          planName:       `Gym Tracker ${cart.planName} Plan`,
+          amount:          cart.price,
+          profileId:       profile.id,
+          customerName:    profile.name,
+          customerEmail:   email,
+          callbackOrigin:  window.location.origin,
+        },
       })
 
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        setError(data.error ?? 'Checkout failed. Please try again.')
+      if (fnError || data?.error) {
+        setError(data?.error ?? fnError?.message ?? 'Checkout failed. Please try again.')
         setCheckingOut(false)
         return
       }
