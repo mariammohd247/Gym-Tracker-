@@ -8,7 +8,7 @@ export interface UserProfile {
   height: number // cm
   weight: number // kg
   target_goal: TargetGoal
-  role: 'user' | 'admin' | 'coach'
+  role: 'user' | 'admin' | 'coach' | 'owner'
   subscription_plan: 'free' | 'pro' | 'elite'
   subscription_expires_at: string | null
   created_at: string
