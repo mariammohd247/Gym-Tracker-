@@ -17,7 +17,7 @@ export default function PaymentErrorPage() {
           href="/"
           className="block w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 rounded-xl transition-all active:scale-95 mb-3"
         >
-          Back to Dashboard
+          Back to Home
         </a>
         <a
           href="/?subscribe=true"

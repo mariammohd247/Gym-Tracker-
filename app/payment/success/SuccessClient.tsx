@@ -99,7 +99,7 @@ export default function SuccessClient() {
               href="/"
               className="block w-full bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white font-semibold py-3 rounded-xl transition-all active:scale-95"
             >
-              Go to Dashboard
+              Go to Home
             </a>
           </>
         )}
