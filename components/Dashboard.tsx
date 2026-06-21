@@ -7,7 +7,8 @@ import WorkoutSession from './WorkoutSession'
 import CustomWorkoutBuilder from './CustomWorkoutBuilder'
 import CustomWorkoutSession from './CustomWorkoutSession'
 import HistoryModal from './HistoryModal'
-import { Flame, Calendar, Target, ChevronRight, LogOut, Trophy, Plus, Pencil, Dumbbell, Trash2 } from 'lucide-react'
+import { Flame, Calendar, Target, ChevronRight, LogOut, Trophy, Plus, Pencil, Dumbbell, Trash2, Sparkles, Crown, Zap } from 'lucide-react'
+import SubscriptionModal from './SubscriptionModal'
 
 interface Props {
   profile: UserProfile
@@ -34,6 +35,7 @@ export default function Dashboard({ profile, onLogout }: Props) {
   const [view, setView] = useState<View>({ type: 'dashboard' })
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [historyModal, setHistoryModal] = useState<'workouts' | 'calories' | null>(null)
+  const [showSubscription, setShowSubscription] = useState(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -120,18 +122,51 @@ export default function Dashboard({ profile, onLogout }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Hey, {profile.name.split(' ')[0]}! 👋</h1>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              Hey, {profile.name.split(' ')[0]}! 👋
+              {profile.subscription_plan === 'elite' && (
+                <Crown className="w-5 h-5 text-purple-400" />
+              )}
+              {profile.subscription_plan === 'pro' && (
+                <Zap className="w-5 h-5 text-orange-400" />
+              )}
+            </h1>
             <p className="text-gray-400 text-sm mt-0.5">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
           </div>
-          <button
-            onClick={onLogout}
-            className="text-gray-500 hover:text-gray-300 transition p-2 rounded-lg hover:bg-gray-700"
-            title="Switch profile"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {profile.subscription_plan === 'free' && (
+              <button
+                onClick={() => setShowSubscription(true)}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition active:scale-95 shadow-md shadow-orange-500/20"
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Upgrade
+              </button>
+            )}
+            {profile.subscription_plan !== 'free' && (
+              <button
+                onClick={() => setShowSubscription(true)}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition active:scale-95 ${
+                  profile.subscription_plan === 'elite'
+                    ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
+                    : 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
+                }`}
+              >
+                {profile.subscription_plan === 'elite'
+                  ? <><Crown className="w-3.5 h-3.5" /> Elite</>
+                  : <><Zap className="w-3.5 h-3.5" /> Pro</>
+                }
+              </button>
+            )}
+            <button
+              onClick={onLogout}
+              className="text-gray-500 hover:text-gray-300 transition p-2 rounded-lg hover:bg-gray-700"
+              title="Log out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Stats cards */}
@@ -290,6 +325,13 @@ export default function Dashboard({ profile, onLogout }: Props) {
           profile={profile}
           defaultTab={historyModal}
           onClose={() => setHistoryModal(null)}
+        />
+      )}
+
+      {showSubscription && (
+        <SubscriptionModal
+          profile={profile}
+          onClose={() => setShowSubscription(false)}
         />
       )}
     </div>
