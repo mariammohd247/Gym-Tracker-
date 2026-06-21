@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Check, ShoppingCart, Loader2, Zap, Crown, Sparkles, Trash2 } from 'lucide-react'
+import { X, Check, ShoppingCart, Zap, Crown, Sparkles, Trash2 } from 'lucide-react'
 import { UserProfile } from '@/lib/types'
+import { CartItem } from './CartDrawer'
 
 interface Plan {
   id: 'pro' | 'elite'
@@ -60,71 +60,23 @@ const PLANS: Plan[] = [
   },
 ]
 
-interface CartItem {
-  plan: Plan
-}
-
 interface Props {
   profile: UserProfile
+  cart: CartItem | null
+  onAddToCart: (item: CartItem) => void
+  onRemoveFromCart: () => void
+  onOpenCart: () => void
   onClose: () => void
 }
 
-export default function SubscriptionModal({ profile, onClose }: Props) {
-  const [cart, setCart] = useState<CartItem | null>(null)
-  const [checkingOut, setCheckingOut] = useState(false)
-  const [checkoutError, setCheckoutError] = useState('')
-
-  function addToCart(plan: Plan) {
-    setCart({ plan })
-    setCheckoutError('')
-  }
-
-  function removeFromCart() {
-    setCart(null)
-    setCheckoutError('')
-  }
-
-  async function handleCheckout() {
-    if (!cart) return
-    setCheckingOut(true)
-    setCheckoutError('')
-
-    try {
-      // Get the user's email from Supabase auth
-      const { supabase } = await import('@/lib/supabase')
-      const { data: { user } } = await supabase.auth.getUser()
-      const email = user?.email ?? 'customer@gymtracker.app'
-
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: cart.plan.id,
-          planName: `Gym Tracker ${cart.plan.name} Plan`,
-          amount: cart.plan.price,
-          profileId: profile.id,
-          customerName: profile.name,
-          customerEmail: email,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        setCheckoutError(data.error ?? 'Checkout failed. Please try again.')
-        setCheckingOut(false)
-        return
-      }
-
-      // Redirect to MyFatoorah payment page
-      window.location.href = data.paymentUrl
-    } catch (err) {
-      console.error(err)
-      setCheckoutError('Something went wrong. Please try again.')
-      setCheckingOut(false)
-    }
-  }
-
+export default function SubscriptionModal({
+  profile,
+  cart,
+  onAddToCart,
+  onRemoveFromCart,
+  onOpenCart,
+  onClose,
+}: Props) {
   const currentPlan = profile.subscription_plan ?? 'free'
 
   return (
@@ -139,16 +91,30 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
             </h2>
             <p className="text-gray-400 text-xs mt-0.5">Choose a plan that fits your goals</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Cart icon — opens cart drawer */}
+            <button
+              onClick={() => { onClose(); onOpenCart() }}
+              className="relative p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {cart && (
+                <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  1
+                </span>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable plan list */}
-        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6 space-y-4">
 
           {/* Current plan chip */}
           {currentPlan !== 'free' && (
@@ -160,7 +126,7 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
             </div>
           )}
 
-          {/* Free plan (read-only, always shown) */}
+          {/* Free plan */}
           <div className="bg-gray-800 border border-gray-700 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -180,8 +146,7 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
             <ul className="space-y-1.5">
               {['Pre-set workouts', 'Basic calorie tracking', 'Workout history'].map(f => (
                 <li key={f} className="flex items-center gap-2 text-sm text-gray-400">
-                  <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                  {f}
+                  <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" /> {f}
                 </li>
               ))}
             </ul>
@@ -190,7 +155,7 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
           {/* Paid plans */}
           {PLANS.map(plan => {
             const isActive = currentPlan === plan.id
-            const inCart = cart?.plan.id === plan.id
+            const inCart = cart?.planId === plan.id
 
             return (
               <div
@@ -199,7 +164,6 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
                   inCart ? plan.borderColor : 'border-gray-700'
                 }`}
               >
-                {/* Recommended badge */}
                 {plan.recommended && (
                   <div className={`${plan.badgeColor} text-white text-xs font-bold text-center py-1 tracking-wider uppercase`}>
                     ⭐ Most Popular
@@ -207,7 +171,6 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
                 )}
 
                 <div className="p-4">
-                  {/* Plan header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${plan.color} flex items-center justify-center text-white`}>
@@ -226,7 +189,6 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Features */}
                   <ul className="space-y-1.5 mb-4">
                     {plan.features.map(f => (
                       <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
@@ -236,21 +198,33 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
                     ))}
                   </ul>
 
-                  {/* CTA button */}
                   {isActive ? (
                     <div className="w-full bg-green-500/20 text-green-400 font-semibold py-2.5 rounded-xl text-center text-sm">
                       ✓ Current Plan
                     </div>
                   ) : inCart ? (
-                    <button
-                      onClick={removeFromCart}
-                      className="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition text-sm"
-                    >
-                      <Trash2 className="w-4 h-4" /> Remove from Cart
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={onRemoveFromCart}
+                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition text-sm"
+                      >
+                        <Trash2 className="w-4 h-4" /> Remove
+                      </button>
+                      <button
+                        onClick={() => { onClose(); onOpenCart() }}
+                        className={`flex-1 bg-gradient-to-r ${plan.color} text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition text-sm active:scale-95`}
+                      >
+                        <ShoppingCart className="w-4 h-4" /> View Cart
+                      </button>
+                    </div>
                   ) : (
                     <button
-                      onClick={() => addToCart(plan)}
+                      onClick={() => onAddToCart({
+                        planId: plan.id,
+                        planName: plan.name,
+                        price: plan.price,
+                        period: plan.period,
+                      })}
                       className={`w-full bg-gradient-to-r ${plan.color} hover:opacity-90 text-white font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition active:scale-95 text-sm shadow-lg`}
                     >
                       <ShoppingCart className="w-4 h-4" /> Add to Cart
@@ -261,47 +235,6 @@ export default function SubscriptionModal({ profile, onClose }: Props) {
             )
           })}
         </div>
-
-        {/* Cart / Checkout footer */}
-        {cart && (
-          <div className="border-t border-gray-700 px-5 py-4 flex-shrink-0 bg-gray-900 rounded-b-2xl space-y-3">
-            {/* Cart summary */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-orange-400" />
-                <span className="text-white font-semibold text-sm">{cart.plan.name} Plan</span>
-              </div>
-              <span className="text-orange-400 font-bold">{cart.plan.price} KWD{cart.plan.period}</span>
-            </div>
-
-            {checkoutError && (
-              <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {checkoutError}
-              </p>
-            )}
-
-            <button
-              onClick={handleCheckout}
-              disabled={checkingOut}
-              className="w-full bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-orange-500/20"
-            >
-              {checkingOut ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Redirecting to payment…
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-5 h-5" />
-                  Proceed to Checkout · {cart.plan.price} KWD
-                </>
-              )}
-            </button>
-            <p className="text-center text-xs text-gray-500">
-              🔒 Secured by MyFatoorah · Cancel anytime
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )

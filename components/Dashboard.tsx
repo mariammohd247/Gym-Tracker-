@@ -7,8 +7,9 @@ import WorkoutSession from './WorkoutSession'
 import CustomWorkoutBuilder from './CustomWorkoutBuilder'
 import CustomWorkoutSession from './CustomWorkoutSession'
 import HistoryModal from './HistoryModal'
-import { Flame, Calendar, Target, ChevronRight, LogOut, Trophy, Plus, Pencil, Dumbbell, Trash2, Sparkles, Crown, Zap } from 'lucide-react'
+import { Flame, Calendar, Target, ChevronRight, LogOut, Trophy, Plus, Pencil, Dumbbell, Trash2, Sparkles, Crown, Zap, ShoppingCart } from 'lucide-react'
 import SubscriptionModal from './SubscriptionModal'
+import CartDrawer, { CartItem } from './CartDrawer'
 
 interface Props {
   profile: UserProfile
@@ -36,6 +37,24 @@ export default function Dashboard({ profile, onLogout }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [historyModal, setHistoryModal] = useState<'workouts' | 'calories' | null>(null)
   const [showSubscription, setShowSubscription] = useState(false)
+  const [showCart, setShowCart] = useState(false)
+  const [cart, setCart] = useState<CartItem | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const saved = localStorage.getItem('gym_cart')
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
+
+  function addToCart(item: CartItem) {
+    setCart(item)
+    localStorage.setItem('gym_cart', JSON.stringify(item))
+  }
+
+  function removeFromCart() {
+    setCart(null)
+    localStorage.removeItem('gym_cart')
+  }
 
   useEffect(() => { loadData() }, [])
 
@@ -159,6 +178,18 @@ export default function Dashboard({ profile, onLogout }: Props) {
                 }
               </button>
             )}
+            {/* Cart icon */}
+            <button
+              onClick={() => setShowCart(true)}
+              className="relative p-2 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              {cart && (
+                <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+                  1
+                </span>
+              )}
+            </button>
             <button
               onClick={onLogout}
               className="text-gray-500 hover:text-gray-300 transition p-2 rounded-lg hover:bg-gray-700"
@@ -331,7 +362,20 @@ export default function Dashboard({ profile, onLogout }: Props) {
       {showSubscription && (
         <SubscriptionModal
           profile={profile}
+          cart={cart}
+          onAddToCart={(item) => { addToCart(item); }}
+          onRemoveFromCart={removeFromCart}
+          onOpenCart={() => setShowCart(true)}
           onClose={() => setShowSubscription(false)}
+        />
+      )}
+
+      {showCart && (
+        <CartDrawer
+          cart={cart}
+          profile={profile}
+          onRemove={removeFromCart}
+          onClose={() => setShowCart(false)}
         />
       )}
     </div>
