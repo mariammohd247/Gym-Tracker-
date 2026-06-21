@@ -28,8 +28,9 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
   const [showSummary, setShowSummary] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // Attachment state
+  // Attachment / share state
   const [attachments, setAttachments] = useState<{ file: File; url: string; uploading: boolean; publicUrl?: string }[]>([])
+  const [showShareWarning, setShowShareWarning] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const caloriesBurned = exercises.filter(e => e.completed).reduce((s, e) => s + e.adjusted_calories, 0)
@@ -89,9 +90,18 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
         const { data: pub } = supabase.storage
           .from('preset-workout-attachments')
           .getPublicUrl(data.path)
+        const publicUrl = pub.publicUrl
         setAttachments(prev =>
-          prev.map((a, i) => i === idx ? { ...a, uploading: false, publicUrl: pub.publicUrl } : a)
+          prev.map((a, i) => i === idx ? { ...a, uploading: false, publicUrl } : a)
         )
+        // Also insert into shared_images so it appears in the gallery
+        if (sessionId && file.type.startsWith('image/')) {
+          await supabase.from('shared_images').insert({
+            user_profile_id: profile.id,
+            session_id: sessionId,
+            image_url: publicUrl,
+          })
+        }
       } else {
         setAttachments(prev => prev.map((a, i) => i === idx ? { ...a, uploading: false } : a))
       }
@@ -261,19 +271,19 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
           </div>
         </div>
 
-        {/* ── Attachments ── */}
+        {/* ── Share Images ── */}
         <div className="bg-gray-800 border border-gray-700 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
               <Paperclip className="w-4 h-4 text-orange-400" />
-              Attachments
+              Share Images
             </h3>
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowShareWarning(true)}
               className="text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 px-3 py-1.5 rounded-lg transition font-medium"
             >
-              + Add file
+              + Share image
             </button>
           </div>
 
@@ -289,12 +299,12 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
           {attachments.length === 0 ? (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowShareWarning(true)}
               className="w-full border-2 border-dashed border-gray-600 hover:border-orange-500/50 rounded-xl py-6 flex flex-col items-center gap-2 transition group"
             >
               <Paperclip className="w-6 h-6 text-gray-500 group-hover:text-orange-400 transition" />
               <p className="text-gray-500 text-sm group-hover:text-gray-400 transition">
-                Upload images, PDFs or videos
+                Share images with the gym community
               </p>
             </button>
           ) : (
@@ -307,7 +317,6 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
                     fileIcon(a.file.type)
                   )}
                   <div className="flex-1 min-w-0">
-                    {/* Preview image if it's an image */}
                     {a.file.type.startsWith('image/') && !a.uploading && (
                       <img
                         src={a.url}
@@ -317,7 +326,7 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
                     )}
                     <p className="text-sm text-gray-300 truncate">{a.file.name}</p>
                     <p className="text-xs text-gray-500">
-                      {a.uploading ? 'Uploading...' : a.publicUrl ? '✓ Uploaded' : 'Upload failed'}
+                      {a.uploading ? 'Uploading…' : a.publicUrl ? '✓ Shared publicly' : 'Upload failed'}
                     </p>
                   </div>
                   <button
@@ -330,17 +339,43 @@ export default function WorkoutSession({ workoutType, profile, onBack }: Props) 
                 </div>
               ))}
 
-              {/* Add more */}
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setShowShareWarning(true)}
                 className="w-full border border-dashed border-gray-600 hover:border-orange-500/50 rounded-xl py-2 text-xs text-gray-500 hover:text-orange-400 transition"
               >
-                + Add another file
+                + Share another image
               </button>
             </div>
           )}
         </div>
+
+        {/* ── Share Warning Popup ── */}
+        {showShareWarning && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+              <div className="text-4xl mb-3">📢</div>
+              <h3 className="text-white font-bold text-lg mb-2">Public Image</h3>
+              <p className="text-gray-400 text-sm leading-relaxed mb-5">
+                This image will be <span className="text-orange-400 font-semibold">publicly visible</span> to all gym members in the Community Gallery. Make sure you&apos;re happy sharing it!
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowShareWarning(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold text-sm transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setShowShareWarning(false); fileInputRef.current?.click() }}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white font-semibold text-sm transition active:scale-95"
+                >
+                  Share Image
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Calorie burn banner */}
         {caloriesBurned > 0 && (
