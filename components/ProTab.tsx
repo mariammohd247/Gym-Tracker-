@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { UserProfile } from '@/lib/types'
 import { generateMonthlyPlan, QuestionnaireAnswers, WeekPlan } from '@/lib/planGenerator'
-import { Zap, Crown, Loader2, ChevronDown, ChevronUp, Lock, Flame } from 'lucide-react'
+import { Zap, Crown, Loader2, ChevronDown, ChevronUp, Lock, Flame, ClipboardList } from 'lucide-react'
+import SubscriptionQuestionnaire from './SubscriptionQuestionnaire'
 
 interface Props {
   profile: UserProfile
@@ -42,11 +43,12 @@ export default function ProTab({ profile, onUpgrade }: Props) {
 
 // ── Subscribed content ────────────────────────────────────────
 function PlanContent({ profile }: { profile: UserProfile }) {
-  const [questionnaire, setQuestionnaire] = useState<QuestionnaireAnswers | null>(null)
-  const [weeklyPlan,    setWeeklyPlan]    = useState<WeekPlan[]>([])
-  const [totalCalsBurned, setTotalCals]  = useState(0)
-  const [loading,       setLoading]      = useState(true)
-  const [expandedWeek,  setExpandedWeek] = useState<number>(1)
+  const [questionnaire,    setQuestionnaire]    = useState<QuestionnaireAnswers | null>(null)
+  const [weeklyPlan,       setWeeklyPlan]       = useState<WeekPlan[]>([])
+  const [totalCalsBurned,  setTotalCals]        = useState(0)
+  const [loading,          setLoading]          = useState(true)
+  const [expandedWeek,     setExpandedWeek]     = useState<number>(1)
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false)
 
   const isPro   = profile.subscription_plan === 'pro'
   const isElite = profile.subscription_plan === 'elite'
@@ -90,6 +92,7 @@ function PlanContent({ profile }: { profile: UserProfile }) {
   }
 
   return (
+    <>
     <div className="pb-28 space-y-5 px-4 pt-4">
       {/* Plan badge */}
       <div className={`rounded-2xl p-5 bg-gradient-to-r ${isPro ? 'from-orange-600 to-orange-400' : 'from-purple-700 to-purple-400'} shadow-lg`}>
@@ -117,12 +120,24 @@ function PlanContent({ profile }: { profile: UserProfile }) {
         </div>
       </div>
 
-      {/* No questionnaire yet */}
+      {/* No questionnaire yet — show CTA to fill it in now */}
       {!questionnaire && (
-        <div className="bg-gray-800 border border-orange-500/30 rounded-2xl p-4 text-center">
-          <p className="text-white font-semibold mb-1">Complete your fitness profile</p>
-          <p className="text-gray-400 text-sm mb-3">We need a few answers to generate your personalised plan.</p>
-          <p className="text-gray-500 text-xs">Go to the Plans tab → Upgrade to fill in your questionnaire</p>
+        <div className="bg-gray-800 border border-orange-500/40 rounded-2xl p-5 text-center space-y-3">
+          <div className="w-14 h-14 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto">
+            <ClipboardList className="w-7 h-7 text-orange-400" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-base">Build Your Personalised Plan</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Answer 5 quick questions so we can generate your custom 4-week workout plan.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowQuestionnaire(true)}
+            className="w-full bg-gradient-to-r from-orange-600 to-orange-400 hover:from-orange-500 hover:to-orange-300 text-white font-bold py-3 rounded-xl transition active:scale-95 flex items-center justify-center gap-2"
+          >
+            <ClipboardList className="w-4 h-4" /> Start Questionnaire
+          </button>
         </div>
       )}
 
@@ -219,5 +234,19 @@ function PlanContent({ profile }: { profile: UserProfile }) {
         </div>
       )}
     </div>
+
+      {/* Questionnaire modal — triggered from ProTab directly */}
+      {showQuestionnaire && (
+        <SubscriptionQuestionnaire
+          profile={profile}
+          onComplete={(answers) => {
+            setQuestionnaire(answers)
+            setWeeklyPlan(generateMonthlyPlan(answers))
+            setShowQuestionnaire(false)
+          }}
+          onClose={() => setShowQuestionnaire(false)}
+        />
+      )}
+    </>
   )
 }
