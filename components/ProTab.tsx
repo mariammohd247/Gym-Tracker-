@@ -72,20 +72,18 @@ function PlanContent({ profile }: { profile: UserProfile }) {
         .not('completed_at', 'is', null),
     ])
 
-    // Elite: also check for a coach-assigned plan
-    const eliteQuery = isElite
-      ? supabase
-          .from('elite_assigned_plans')
-          .select('title, notes, plan_data')
-          .eq('user_profile_id', profile.id)
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null })
+    // Pro + Elite: check for a coach-assigned plan (works for both)
+    const assignedQuery = supabase
+      .from('elite_assigned_plans')
+      .select('title, notes, plan_data')
+      .eq('user_profile_id', profile.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    const [[qRes, statsRes], eliteRes] = await Promise.all([baseQueries, eliteQuery])
+    const [[qRes, statsRes], eliteRes] = await Promise.all([baseQueries, assignedQuery])
 
-    // Coach-assigned plan takes priority over AI-generated for elite members
+    // Coach-assigned plan takes priority over AI-generated
     if (eliteRes.data) {
       setAssignedPlanTitle(eliteRes.data.title as string)
       setAssignedPlanNotes((eliteRes.data.notes as string | null) ?? null)
@@ -100,7 +98,7 @@ function PlanContent({ profile }: { profile: UserProfile }) {
     }
 
     setLoading(false)
-  }, [profile.id, isElite])
+  }, [profile.id])
 
   useEffect(() => { load() }, [load])
 
