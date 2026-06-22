@@ -6,7 +6,7 @@ import { UserProfile } from '@/lib/types'
 import { WeekPlan, WorkoutBlock } from '@/lib/planGenerator'
 import {
   Save, ChevronDown, ChevronUp, Loader2, CheckCircle,
-  User, Crown, Zap, ClipboardList, AlertCircle,
+  User, Crown, Zap, ClipboardList, AlertCircle, Sparkles,
 } from 'lucide-react'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -20,11 +20,12 @@ function WorkoutDayEditor({
   isPro: boolean
   onUpdate: (patch: Partial<WorkoutBlock>) => void
 }) {
-  const [name,     setName]     = useState(workout.name)
-  const [focus,    setFocus]    = useState(workout.focus)
-  const [calories, setCalories] = useState(String(workout.calories))
-  const [exText,   setExText]   = useState(workout.exercises.join('\n'))
-  const [note,     setNote]     = useState(workout.note ?? '')
+  const [name,        setName]        = useState(workout.name)
+  const [focus,       setFocus]       = useState(workout.focus)
+  const [calories,    setCalories]    = useState(String(workout.calories))
+  const [exText,      setExText]      = useState(workout.exercises.join('\n'))
+  const [note,        setNote]        = useState(workout.note ?? '')
+  const [calculating, setCalculating] = useState(false)
 
   // Re-sync if the parent resets (e.g. member switch)
   useEffect(() => {
@@ -35,11 +36,40 @@ function WorkoutDayEditor({
     setNote(workout.note ?? '')
   }, [workout.name, workout.focus, workout.calories, workout.note]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Parse each exercise line and sum AI calorie estimates
+  async function aiCalculateCalories() {
+    const lines = exText.split('\n').map(s => s.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    setCalculating(true)
+
+    let total = 0
+    for (const line of lines) {
+      // Try to parse "Exercise Name 4×8" or "Exercise Name 3x10"
+      const match = line.match(/^(.+?)\s+(\d+)[×x](\d+)/i)
+      const exName  = match ? match[1].trim() : line.replace(/\d+\s*(min|s|sec|reps|sets|×|\d)/gi, '').trim()
+      const sets    = match ? parseInt(match[2]) : 3
+      const reps    = match ? parseInt(match[3]) : 10
+
+      try {
+        const { data } = await supabase.functions.invoke('calculate-calories', {
+          body: { type: 'strength', exerciseName: exName || line, weightKg: 0, reps, rounds: sets, userWeightKg: 70 },
+        })
+        total += data?.calories ?? 0
+      } catch { /* skip if one fails */ }
+    }
+
+    const result = String(total)
+    setCalories(result)
+    onUpdate({ calories: total, exercises: lines })
+    setCalculating(false)
+  }
+
   const accent = isPro ? 'focus:border-orange-500' : 'focus:border-purple-500'
+  const accentBg = isPro ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
 
   return (
     <div className="mt-3 space-y-3 bg-gray-700/40 rounded-xl p-3">
-      {/* Emoji picker — immediate, no text so no space issue */}
+      {/* Emoji picker */}
       <div className="flex flex-wrap gap-1.5">
         {EMOJIS.map(em => (
           <button key={em} onClick={() => onUpdate({ emoji: em })}
@@ -50,7 +80,7 @@ function WorkoutDayEditor({
         ))}
       </div>
 
-      {/* Name — local state, syncs on blur */}
+      {/* Name */}
       <input
         value={name}
         onChange={e => setName(e.target.value)}
@@ -59,7 +89,7 @@ function WorkoutDayEditor({
         className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
       />
 
-      {/* Focus — local state, syncs on blur */}
+      {/* Focus */}
       <input
         value={focus}
         onChange={e => setFocus(e.target.value)}
@@ -68,19 +98,7 @@ function WorkoutDayEditor({
         className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
       />
 
-      {/* Calories only — duration removed */}
-      <div>
-        <label className="text-xs text-gray-400 mb-1 block">Est. Calories</label>
-        <input
-          type="number"
-          value={calories}
-          onChange={e => setCalories(e.target.value)}
-          onBlur={() => onUpdate({ calories: Number(calories) || 0 })}
-          className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
-        />
-      </div>
-
-      {/* Exercises — local state, syncs on blur */}
+      {/* Exercises first — so AI can read them before calculating calories */}
       <div>
         <label className="text-xs text-gray-400 mb-1 block">
           Exercises <span className="text-gray-600">(one per line)</span>
@@ -95,7 +113,36 @@ function WorkoutDayEditor({
         />
       </div>
 
-      {/* Coach note — local state, syncs on blur */}
+      {/* Calories — AI calculated or manual override */}
+      <div className="space-y-2">
+        <label className="text-xs text-gray-400 block">Est. Calories</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={calories}
+            onChange={e => setCalories(e.target.value)}
+            onBlur={() => onUpdate({ calories: Number(calories) || 0 })}
+            placeholder="0"
+            className={`flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
+          />
+          <button
+            onClick={aiCalculateCalories}
+            disabled={calculating || exText.trim().length === 0}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition disabled:opacity-40 active:scale-95 ${accentBg}`}
+          >
+            {calculating
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Sparkles className="w-3.5 h-3.5" />
+            }
+            {calculating ? 'Calculating…' : 'AI Calc'}
+          </button>
+        </div>
+        {Number(calories) > 0 && (
+          <p className="text-xs text-gray-500">🔥 {calories} cal estimated for this session</p>
+        )}
+      </div>
+
+      {/* Coach note */}
       <input
         value={note}
         onChange={e => setNote(e.target.value)}
