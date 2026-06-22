@@ -1,9 +1,9 @@
 'use client'
 
-import { Home, Image, User, Zap, Crown } from 'lucide-react'
+import { Home, Image, User, Zap, Crown, ShieldCheck } from 'lucide-react'
 import { UserProfile } from '@/lib/types'
 
-export type Tab = 'home' | 'plan' | 'gallery' | 'profile'
+export type Tab = 'home' | 'plan' | 'gallery' | 'profile' | 'admin'
 
 interface Props {
   active: Tab
@@ -13,19 +13,21 @@ interface Props {
 
 export default function BottomNav({ active, profile, onChange }: Props) {
   const plan = profile.subscription_plan
+  const isStaff = ['admin', 'coach', 'owner'].includes(profile.role)
 
-  const tabs = [
-    { id: 'home'    as Tab, label: 'Home',    icon: <Home    className="w-5 h-5" /> },
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; premium?: boolean; staff?: boolean }[] = [
+    { id: 'home',    label: 'Home',    icon: <Home    className="w-5 h-5" /> },
     {
-      id: 'plan' as Tab,
+      id: 'plan',
       label: plan === 'elite' ? 'Elite' : 'Pro',
       icon: plan === 'elite'
         ? <Crown className="w-5 h-5" />
         : <Zap  className="w-5 h-5" />,
       premium: true,
     },
-    { id: 'gallery' as Tab, label: 'Gallery', icon: <Image   className="w-5 h-5" /> },
-    { id: 'profile' as Tab, label: 'Profile', icon: <User    className="w-5 h-5" /> },
+    { id: 'gallery', label: 'Gallery', icon: <Image   className="w-5 h-5" /> },
+    { id: 'profile', label: 'Profile', icon: <User    className="w-5 h-5" /> },
+    ...(isStaff ? [{ id: 'admin' as Tab, label: 'Admin', icon: <ShieldCheck className="w-5 h-5" />, staff: true }] : []),
   ]
 
   return (
@@ -33,9 +35,11 @@ export default function BottomNav({ active, profile, onChange }: Props) {
       {tabs.map(tab => {
         const isActive  = active === tab.id
         const locked    = tab.premium && plan === 'free'
-        const color     = tab.id === 'plan'
-          ? (plan === 'elite' ? 'text-purple-400' : 'text-orange-400')
-          : 'text-orange-400'
+        const color     = tab.id === 'admin'
+          ? 'text-green-400'
+          : tab.id === 'plan'
+            ? (plan === 'elite' ? 'text-purple-400' : 'text-orange-400')
+            : 'text-orange-400'
 
         return (
           <button
@@ -55,6 +59,7 @@ export default function BottomNav({ active, profile, onChange }: Props) {
             {/* Active indicator dot */}
             {isActive && (
               <span className={`absolute top-1.5 w-1 h-1 rounded-full ${
+                tab.id === 'admin' ? 'bg-green-400' :
                 tab.id === 'plan' && plan === 'elite' ? 'bg-purple-400' : 'bg-orange-400'
               }`} />
             )}

@@ -14,6 +14,7 @@ import BottomNav, { Tab } from './BottomNav'
 import GalleryTab from './GalleryTab'
 import ProTab from './ProTab'
 import ProfileTab from './ProfileTab'
+import AdminPanel from './AdminPanel'
 import { Flame, Calendar, Target, ChevronRight, Trophy, Plus, Pencil, Dumbbell, Trash2, ShoppingCart, Sparkles, Crown, Zap } from 'lucide-react'
 import { QuestionnaireAnswers } from '@/lib/planGenerator'
 
@@ -400,6 +401,11 @@ export default function Dashboard({ profile, onLogout }: Props) {
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <ProfileTab profile={profile} onLogout={onLogout} />
+          )}
+
+          {/* ADMIN TAB — only for admin / coach / owner */}
+          {activeTab === 'admin' && ['admin', 'coach', 'owner'].includes(profile.role) && (
+            <AdminPanel profile={profile} />
           )}
         </div>
       </div>

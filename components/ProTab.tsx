@@ -43,11 +43,13 @@ export default function ProTab({ profile, onUpgrade }: Props) {
 
 // ── Subscribed content ────────────────────────────────────────
 function PlanContent({ profile }: { profile: UserProfile }) {
-  const [questionnaire,    setQuestionnaire]    = useState<QuestionnaireAnswers | null>(null)
-  const [weeklyPlan,       setWeeklyPlan]       = useState<WeekPlan[]>([])
-  const [totalCalsBurned,  setTotalCals]        = useState(0)
-  const [loading,          setLoading]          = useState(true)
-  const [expandedWeek,     setExpandedWeek]     = useState<number>(1)
+  const [questionnaire,     setQuestionnaire]     = useState<QuestionnaireAnswers | null>(null)
+  const [weeklyPlan,        setWeeklyPlan]        = useState<WeekPlan[]>([])
+  const [assignedPlanTitle, setAssignedPlanTitle] = useState<string | null>(null)
+  const [assignedPlanNotes, setAssignedPlanNotes] = useState<string | null>(null)
+  const [totalCalsBurned,   setTotalCals]         = useState(0)
+  const [loading,           setLoading]           = useState(true)
+  const [expandedWeek,      setExpandedWeek]      = useState<number>(1)
   const [showQuestionnaire, setShowQuestionnaire] = useState(false)
 
   const isPro   = profile.subscription_plan === 'pro'
@@ -56,7 +58,8 @@ function PlanContent({ profile }: { profile: UserProfile }) {
   const load = useCallback(async () => {
     setLoading(true)
 
-    const [qRes, statsRes] = await Promise.all([
+    // Base queries for everyone
+    const baseQueries = Promise.all([
       supabase
         .from('subscription_questionnaire')
         .select('*')
@@ -69,7 +72,25 @@ function PlanContent({ profile }: { profile: UserProfile }) {
         .not('completed_at', 'is', null),
     ])
 
-    if (qRes.data) {
+    // Elite: also check for a coach-assigned plan
+    const eliteQuery = isElite
+      ? supabase
+          .from('elite_assigned_plans')
+          .select('title, notes, plan_data')
+          .eq('user_profile_id', profile.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null })
+
+    const [[qRes, statsRes], eliteRes] = await Promise.all([baseQueries, eliteQuery])
+
+    // Coach-assigned plan takes priority over AI-generated for elite members
+    if (eliteRes.data) {
+      setAssignedPlanTitle(eliteRes.data.title as string)
+      setAssignedPlanNotes((eliteRes.data.notes as string | null) ?? null)
+      setWeeklyPlan(eliteRes.data.plan_data as WeekPlan[])
+    } else if (qRes.data) {
       setQuestionnaire(qRes.data)
       setWeeklyPlan(generateMonthlyPlan(qRes.data))
     }
@@ -79,7 +100,7 @@ function PlanContent({ profile }: { profile: UserProfile }) {
     }
 
     setLoading(false)
-  }, [profile.id])
+  }, [profile.id, isElite])
 
   useEffect(() => { load() }, [load])
 
@@ -101,11 +122,23 @@ function PlanContent({ profile }: { profile: UserProfile }) {
             ? <Zap  className="w-7 h-7 text-white" />
             : <Crown className="w-7 h-7 text-white" />
           }
-          <div>
-            <h2 className="text-white text-xl font-bold">{isPro ? 'Pro' : 'Elite'} Plan</h2>
-            <p className="text-white/70 text-xs">Personalised for {profile.name.split(' ')[0]}</p>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-white text-xl font-bold">
+              {assignedPlanTitle ?? `${isPro ? 'Pro' : 'Elite'} Plan`}
+            </h2>
+            <p className="text-white/70 text-xs">
+              {assignedPlanTitle
+                ? '👨‍💼 Coach-assigned plan'
+                : `Personalised for ${profile.name.split(' ')[0]}`}
+            </p>
           </div>
         </div>
+        {/* Coach notes */}
+        {assignedPlanNotes && (
+          <div className="bg-white/15 rounded-xl px-3 py-2 mb-3 text-white/90 text-xs leading-relaxed">
+            📋 {assignedPlanNotes}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white/20 rounded-xl p-3 text-center">
             <div className="text-white font-bold text-xl">{totalCalsBurned.toLocaleString()}</div>
