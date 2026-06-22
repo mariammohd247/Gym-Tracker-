@@ -12,6 +12,101 @@ import {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const EMOJIS = ['💪', '🏃', '🔥', '⚡', '🦵', '🏋️', '🎯', '💥', '🧘', '🤸', '🚴', '🏊']
 
+// ── Workout day editor — local state prevents space-breaking re-renders ──
+function WorkoutDayEditor({
+  workout, isPro, onUpdate,
+}: {
+  workout: WorkoutBlock
+  isPro: boolean
+  onUpdate: (patch: Partial<WorkoutBlock>) => void
+}) {
+  const [name,     setName]     = useState(workout.name)
+  const [focus,    setFocus]    = useState(workout.focus)
+  const [calories, setCalories] = useState(String(workout.calories))
+  const [exText,   setExText]   = useState(workout.exercises.join('\n'))
+  const [note,     setNote]     = useState(workout.note ?? '')
+
+  // Re-sync if the parent resets (e.g. member switch)
+  useEffect(() => {
+    setName(workout.name)
+    setFocus(workout.focus)
+    setCalories(String(workout.calories))
+    setExText(workout.exercises.join('\n'))
+    setNote(workout.note ?? '')
+  }, [workout.name, workout.focus, workout.calories, workout.note]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const accent = isPro ? 'focus:border-orange-500' : 'focus:border-purple-500'
+
+  return (
+    <div className="mt-3 space-y-3 bg-gray-700/40 rounded-xl p-3">
+      {/* Emoji picker — immediate, no text so no space issue */}
+      <div className="flex flex-wrap gap-1.5">
+        {EMOJIS.map(em => (
+          <button key={em} onClick={() => onUpdate({ emoji: em })}
+            className={`text-xl transition ${workout.emoji === em ? 'opacity-100 scale-125' : 'opacity-40 hover:opacity-80'}`}
+          >
+            {em}
+          </button>
+        ))}
+      </div>
+
+      {/* Name — local state, syncs on blur */}
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onBlur={() => onUpdate({ name })}
+        placeholder="Workout name (e.g. Push Day)"
+        className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
+      />
+
+      {/* Focus — local state, syncs on blur */}
+      <input
+        value={focus}
+        onChange={e => setFocus(e.target.value)}
+        onBlur={() => onUpdate({ focus })}
+        placeholder="Focus area (e.g. Chest / Shoulders)"
+        className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
+      />
+
+      {/* Calories only — duration removed */}
+      <div>
+        <label className="text-xs text-gray-400 mb-1 block">Est. Calories</label>
+        <input
+          type="number"
+          value={calories}
+          onChange={e => setCalories(e.target.value)}
+          onBlur={() => onUpdate({ calories: Number(calories) || 0 })}
+          className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
+        />
+      </div>
+
+      {/* Exercises — local state, syncs on blur */}
+      <div>
+        <label className="text-xs text-gray-400 mb-1 block">
+          Exercises <span className="text-gray-600">(one per line)</span>
+        </label>
+        <textarea
+          value={exText}
+          onChange={e => setExText(e.target.value)}
+          onBlur={() => onUpdate({ exercises: exText.split('\n').map(s => s.trim()).filter(Boolean) })}
+          rows={4}
+          placeholder={"Bench Press 4×8\nIncline DB Press 3×10\nCable Fly 3×12"}
+          className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent} resize-none font-mono`}
+        />
+      </div>
+
+      {/* Coach note — local state, syncs on blur */}
+      <input
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        onBlur={() => onUpdate({ note })}
+        placeholder="e.g. Avoid heavy overhead press if shoulder pain"
+        className={`w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${accent}`}
+      />
+    </div>
+  )
+}
+
 interface Questionnaire {
   goal: string
   health_issues: string
@@ -143,10 +238,6 @@ export default function PlanBuilder({ adminProfile, planType }: Props) {
     })
   }
 
-  function updateExercises(weekIdx: number, dayIdx: number, raw: string) {
-    const list = raw.split('\n').map(s => s.trim()).filter(Boolean)
-    updateWorkout(weekIdx, dayIdx, { exercises: list })
-  }
 
   function updateTheme(weekIdx: number, theme: string) {
     setWeeks(prev => {
@@ -419,76 +510,13 @@ export default function PlanBuilder({ adminProfile, planType }: Props) {
                                   </p>
                                 )}
 
-                                {/* Workout editor */}
+                                {/* Workout editor — extracted component keeps local state so spaces work */}
                                 {w && isExpanded && (
-                                  <div className="mt-3 space-y-3 bg-gray-700/40 rounded-xl p-3">
-                                    {/* Emoji picker */}
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {EMOJIS.map(em => (
-                                        <button
-                                          key={em}
-                                          onClick={() => updateWorkout(wIdx, dIdx, { emoji: em })}
-                                          className={`text-xl transition ${w.emoji === em ? 'opacity-100 scale-125' : 'opacity-40 hover:opacity-80'}`}
-                                        >
-                                          {em}
-                                        </button>
-                                      ))}
-                                    </div>
-
-                                    <input
-                                      value={w.name}
-                                      onChange={e => updateWorkout(wIdx, dIdx, { name: e.target.value })}
-                                      placeholder="Workout name (e.g. Push Day)"
-                                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                                    />
-                                    <input
-                                      value={w.focus}
-                                      onChange={e => updateWorkout(wIdx, dIdx, { focus: e.target.value })}
-                                      placeholder="Focus area (e.g. Chest / Shoulders)"
-                                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                                    />
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <label className="text-xs text-gray-400 mb-1 block">Duration (min)</label>
-                                        <input
-                                          type="number"
-                                          value={w.duration}
-                                          onChange={e => updateWorkout(wIdx, dIdx, { duration: Number(e.target.value) })}
-                                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs text-gray-400 mb-1 block">Est. Calories</label>
-                                        <input
-                                          type="number"
-                                          value={w.calories}
-                                          onChange={e => updateWorkout(wIdx, dIdx, { calories: Number(e.target.value) })}
-                                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                                        />
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="text-xs text-gray-400 mb-1 block">
-                                        Exercises <span className="text-gray-600">(one per line)</span>
-                                      </label>
-                                      <textarea
-                                        value={w.exercises.join('\n')}
-                                        onChange={e => updateExercises(wIdx, dIdx, e.target.value)}
-                                        rows={4}
-                                        placeholder={"Bench Press 4×8\nIncline DB Press 3×10\nCable Fly 3×12"}
-                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500 resize-none font-mono"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-xs text-gray-400 mb-1 block">Health / Coach note (optional)</label>
-                                      <input
-                                        value={w.note ?? ''}
-                                        onChange={e => updateWorkout(wIdx, dIdx, { note: e.target.value })}
-                                        placeholder="e.g. Avoid heavy overhead press if shoulder pain"
-                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                                      />
-                                    </div>
-                                  </div>
+                                  <WorkoutDayEditor
+                                    workout={w}
+                                    isPro={isPro}
+                                    onUpdate={patch => updateWorkout(wIdx, dIdx, patch)}
+                                  />
                                 )}
                               </div>
                             )
